@@ -22,6 +22,8 @@ RED='\033[1;31m'
 GREEN='\033[1;32m'
 NC='\033[0m' # No Color
 
+clear
+if [[ ! -f startup-config ]]; then echo "Router Configuration needs to be in this directory saved as "startup-config""; exit 1 ; fi
 
 
 # Suggests hardware types for deployment
@@ -319,12 +321,15 @@ V_SUBNET1_IP=10.1.101.5
 V_SUBNET2_NAME=VNIC2-sub
 V_SUBNET2=10.1.102.0/24
 V_SUBNET2_IP=10.1.102.5
+V_SUBNET2_GW=10.1.102.5
 V_SUBNET3_NAME=VNIC3-sub
 V_SUBNET3=10.1.103.0/24
 V_SUBNET3_IP=10.1.103.5
+V_SUBNET3_GW=10.1.103.5
 V_SUBNET4_NAME=VNIC4-sub
 V_SUBNET4=10.1.104.0/24
 V_SUBNET4_IP=10.1.104.5
+V_SUBNET4_GW=10.1.104.5
 NSG1=${SUBSCRIPTION_NAME}-${REGION}-VNIC1-nsg
 NSG2=${SUBSCRIPTION_NAME}-${REGION}-VNIC2-nsg
 NSG3=${SUBSCRIPTION_NAME}-${REGION}-VNIC3-nsg
@@ -692,6 +697,9 @@ done
 
 
 rm -rf ${project_code}-vm1
+
+
+
 
     
 # Grabbing IP Addresses
