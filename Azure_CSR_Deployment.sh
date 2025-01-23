@@ -741,8 +741,9 @@ clear
 echo
 echo
 echo -e "${RED} Router needs a restart to apply configuration${NC}"
-echo "        Please press ENTER"
-ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'reload'
+az vm restart \
+    --resource-group ${RESOURCE_GROUP} \
+    --name ${VMNAME}
 echo -e "${GREEN} Router restarted to apply configuration${NC}"
 echo
 ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
