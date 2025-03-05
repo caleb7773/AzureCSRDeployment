@@ -31,7 +31,7 @@ if [[ ! -f startup-config ]]; then echo "Router Configuration needs to be in thi
     #Standard_DS4_v2 ($427 per month) [Maybe 4?]
     #Standard_DS3_v2 ($213 per month) [Maybe 3?]
     #Standard_DS2_v2 ($106 per month) [Max of 2 Network adapters allowed]
-VmHwType="Standard_DS4_v2"
+VmHwType="Standard_DS3_v2"
 USERNAME="standarduser"
 Image="cisco:cisco-c8000v-byol:17_16_01a-byol:17.16.0120250107"
 
@@ -190,7 +190,7 @@ echo "##########################################################################
 	echo	
 	echo
 	echo
-	echo -e " Where do you want your users to ${GREEN}enter${NC} the redirector ${RED}(eastus)${NC}?"
+	echo -e " Where do you want the ${GREEN}CSR located${NC} ${RED}(eastus)${NC}?"
 	read -p " > " REGION
 	if [[ -z "${REGION}" ]];
 	then
@@ -730,26 +730,142 @@ echo -e " This is a Cisco thing in the background, the azure stuff is good."
 echo
 echo
 echo
-ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=20  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=20  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
 while [[ ${?} != 0 ]];
 do
 sleep 20s
-ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=20  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
-done
-scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa startup-config ${USERNAME}@${VM_1_Public_IP_ADDRESS}:startup-config
 clear
+echo -e " Your Router is not quite accessible yet, I'll let you know when SSH is ready for your connection"
+echo -e " This is a Cisco thing in the background, the azure stuff is good."
 echo
 echo
-echo -e "${RED} Router needs a restart to apply configuration${NC}"
-ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'reload'
+echo
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=20 ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
+done
+
+
+clear
+
+
+
+# Starting the licensing part
+echo "This is your license reservation information"
+echo
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=20 ${USERNAME}@${VM_1_Public_IP_ADDRESS} << EOF
+conf t
+license smart reservation
+exit
+EOF
+
+RequestCode=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=20 ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'license smart reservation request all' | grep "Request code" | cut -d ':' -f2-)
+clear
+echo "Your Request code for Cisco is: "
+echo "${RequestCode}"
+
+################################################################################################
+#
+# I can do a test license from engineers but I can't burn it down without deactivating the license because it makes it hard to recoup that license #
+#
+################################################################################################
+#
+#
+# TCL is a way to run a script on the router without needing to elevate to config t mode
+# 
+# Upload the TCL to the router, then SSH and call the script
+#
+#
+###############################################################################################
+
+echo -e "${RED} Router needs the license key${NC}"
+echo
+echo
+read -rp "Please enter the File Name exactly from Cisco's Website including exetension: " filename
+echo
+echo
+echo "Copy and Paste your license key now"
+echo "(Press CTRL+D after copy is complete)"
+read -rp 'Please enter the details: ' -d $'\04' data
+
+echo ${data} > ${filename}
+
+scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa ${filename} ${USERNAME}@${VM_1_Public_IP_ADDRESS}:${filename}
+
+
+# Install the CSR Licensing file
+
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=20 ${USERNAME}@${VM_1_Public_IP_ADDRESS} << EOF
+license smart reservation install file bootflash:${filename}
+config t
+license boot level network-premier addon dna-premier
+license accept end user agree
+do write
+EOF
+
+# Reload required to fully accept the license
+
+echo -e "${RED} Router needs a restart to apply license${NC}"
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=20 ${USERNAME}@${VM_1_Public_IP_ADDRESS} << EOF
+reload
+yes
+EOF
 echo -e "${GREEN} Router restarted to apply configuration${NC}"
 echo
-ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
 while [[ ${?} != 0 ]];
 do
 sleep 60s
-ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
+clear
+echo -e "${GREEN} Router restarted to apply configuration${NC}"
+echo
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
 done
+
+echo "Reboot Complete"
+# Assign throughput level to 1Gig (Reboot is required before this command set)
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS}  << EOF
+conf t
+platform hardware throughput level MB 1000
+EOF
+
+# Check License and Throughput level
+ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS}  << EOF
+show license all
+show platform hardware throughput level
+exit
+EOF
+
+
+
+#########################################
+# Don't know if i need this anymore
+# scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa startup-config ${USERNAME}@${VM_1_Public_IP_ADDRESS}:startup-config
+#########################################
+clear
+echo
+echo
+# # # # # This might not be required # # # # # #
+#echo -e "${RED} Router needs a restart to apply configuration${NC}"
+#ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'reload'
+#echo -e "${GREEN} Router restarted to apply configuration${NC}"
+#echo
+#ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
+#while [[ ${?} != 0 ]];
+#do
+#sleep 60s
+#clear
+#echo -e "${GREEN} Router restarted to apply configuration${NC}"
+#echo
+#ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o ConnectTimeout=60  ${USERNAME}@${VM_1_Public_IP_ADDRESS} 'show clock'
+#done
+
+
+
+
+
+# Lock out the SSH access from the NSG to harden the CSR
+
+
+
 clear
 echo
 echo
@@ -763,7 +879,7 @@ echo
 echo -e " ${GREEN} SSH IS READY! ${NC}"
 echo
 echo -e "   SSH into Router"
-echo -e "      ssh -i ~/.ssh/id_rsa -o PubkeyAcceptedKeyTypes=ssh-rsa ${USERNAME}@${VM_1_Public_IP_ADDRESS}"
+echo -e "      ssh -i ~/.ssh/id_rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa ${USERNAME}@${VM_1_Public_IP_ADDRESS}"
 echo
 echo 
 echo " ${starttime} - Script initiated"
