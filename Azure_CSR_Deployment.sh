@@ -835,10 +835,11 @@ exit
 EOF
 
 
+# SCP to Cisco Routers from OpenSSH 9.0 or later requires -O flag to enforce SCP protocol and not SFTP
 
 #########################################
 # Don't know if i need this anymore
-# scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa startup-config ${USERNAME}@${VM_1_Public_IP_ADDRESS}:startup-config
+# scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -O startup-config ${USERNAME}@${VM_1_Public_IP_ADDRESS}:startup-config
 #########################################
 clear
 echo
